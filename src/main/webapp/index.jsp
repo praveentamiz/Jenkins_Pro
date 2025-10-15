@@ -1,6 +1,6 @@
 <html>
 <body>
-<h1><font color='pink'>  Welcome to Devops Home Page... <font></h1>
+<h1><font color='red'>  Welcome to Devops Home Page... <font></h1>
 <h1><font color='blue'>  This is the sample web page... <font></h1>
 <h1><font color='green'>  Devteam has been added <font></h1>
 <h1><font color='black'>  CI/CD For Declarative Pipeline example <font></h1>
