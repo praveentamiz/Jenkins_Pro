@@ -4,4 +4,4 @@ pipeline:
   stages:
     - stage: Migrate_Databases
       steps:
-        - "powershell C:\\JenkinsScripts\\db-migrate.ps1"
+        - "bat powershell -ExecutionPolicy Bypass -File C:\\JenkinsScripts\\db-migrate.ps1"
