@@ -1,0 +1,20 @@
+pipeline:
+  agent: any
+
+  stages:
+
+    - stage: Get_ADPL_DB_List
+      steps:
+        - bat: "sqlcmd -S 192.168.1.2 -E -Q \"SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name LIKE 'ADPL%'\" -o C:\\DBBackups\\adpl_dbs.txt"
+
+    - stage: Backup_ADPL_Databases
+      steps:
+        - bat: "for /f %i in (C:\\DBBackups\\adpl_dbs.txt) do sqlcmd -S 192.168.1.2 -E -Q \"BACKUP DATABASE [%i] TO DISK='C:\\DBBackups\\%i.bak' WITH INIT\""
+
+    - stage: Copy_Backups
+      steps:
+        - bat: "xcopy C:\\DBBackups\\*.bak \\\\192.168.1.4\\SQLBackups\\ /Y"
+
+    - stage: Restore_ADPL_Databases
+      steps:
+        - bat: "for /f %i in (C:\\DBBackups\\adpl_dbs.txt) do sqlcmd -S 192.168.1.4 -E -Q \"RESTORE DATABASE [%i] FROM DISK='C:\\SQLBackups\\%i.bak' WITH REPLACE\""
