@@ -11,12 +11,12 @@ pipeline:
 
     - stage: Backup_Database
       steps:
-        - bat: "sqlcmd -S %SOURCE_SQL% -E -Q \"BACKUP DATABASE [ADPL_DMS_QA] TO DISK='%BACKUP_PATH%\\ADPL_DMS_QA.bak' WITH INIT\""
+        - "bat \"sqlcmd -S %SOURCE_SQL% -E -Q BACKUP DATABASE [ADPL_DMS_QA] TO DISK='%BACKUP_PATH%\\ADPL_DMS_QA.bak' WITH INIT\""
 
     - stage: Copy_Backup
       steps:
-        - bat: "copy %BACKUP_PATH%\\ADPL_DMS_QA.bak \\\\192.168.1.4\\SQLBackups\\"
+        - "bat \"copy %BACKUP_PATH%\\ADPL_DMS_QA.bak \\\\192.168.1.4\\SQLBackups\\\""
 
     - stage: Restore_Database
       steps:
-        - bat: "sqlcmd -S %DEST_SQL% -E -Q \"RESTORE DATABASE [ADPL_DMS_QA] FROM DISK='%RESTORE_PATH%\\ADPL_DMS_QA.bak' WITH REPLACE\""
+        - "bat \"sqlcmd -S %DEST_SQL% -E -Q RESTORE DATABASE [ADPL_DMS_QA] FROM DISK='%RESTORE_PATH%\\ADPL_DMS_QA.bak' WITH REPLACE\""
