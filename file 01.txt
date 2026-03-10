@@ -1,0 +1,31 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Clone from GitHub') {
+            steps {
+                git branch: 'main', url: 'https://github.com/praveentamiz/jenkins_pro.git'
+            }
+        }
+
+        stage('Build Application') {
+            steps {
+                sh 'dotnet build'  // Example for .NET
+            }
+        }
+
+        stage('Call Azure API') {
+            steps {
+                script {
+                    def response = httpRequest(
+                        httpMode: 'POST',
+                        url: 'https://your-azure-api.azurewebsites.net/api/trigger',
+                        contentType: 'APPLICATION_JSON',
+                        requestBody: '{"server": "IAS"}'
+                    )
+                    echo "Response: ${response.content}"
+                }
+            }
+        }
+    }
+}

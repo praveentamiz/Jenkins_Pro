@@ -1,0 +1,8 @@
+node {
+  stage('Build') {
+      echo "Build is done"
+    }
+  stage('Test') {
+      echo "Test case is done"
+    }
+}
