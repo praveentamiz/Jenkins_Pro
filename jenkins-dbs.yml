@@ -1,8 +1,25 @@
 pipeline:
-  agent:
-    any
+  agent: any
+
+  environment:
+    SOURCE_SQL: "192.168.1.2"
+    DEST_SQL: "192.168.1.4"
+    BACKUP_PATH: "E:\\MSSQL\\MSSQL16.MSSERVER\\MSSQL\\Backup"
+    RESTORE_PATH: "C:\\SQLBackups"
 
   stages:
-    - stage: Migrate_Databases
+
+    - stage: Backup_ADPL_DBS
       steps:
-        - "bat \"powershell -ExecutionPolicy Bypass -File C:\\\\JenkinsScripts\\\\db-migrate.ps1\""
+        - "bat sqlcmd -S %SOURCE_SQL% -E -Q \"BACKUP DATABASE [ADPL_DMS_QA] TO DISK='%BACKUP_PATH%\\ADPL_DMS_QA.bak' WITH INIT\""
+        - "bat sqlcmd -S %SOURCE_SQL% -E -Q \"BACKUP DATABASE [ADPL_USM_QA] TO DISK='%BACKUP_PATH%\\ADPL_USM_QA.bak' WITH INIT\""
+
+    - stage: Copy_Backups
+      steps:
+        - "bat copy %BACKUP_PATH%\\ADPL_DMS_QA.bak \\\\192.168.1.4\\SQLBackups\\"
+        - "bat copy %BACKUP_PATH%\\ADPL_USM_QA.bak \\\\192.168.1.4\\SQLBackups\\"
+
+    - stage: Restore_Databases
+      steps:
+        - "bat sqlcmd -S %DEST_SQL% -E -Q \"RESTORE DATABASE [ADPL_DMS_QA] FROM DISK='%RESTORE_PATH%\\ADPL_DMS_QA.bak' WITH REPLACE\""
+        - "bat sqlcmd -S %DEST_SQL% -E -Q \"RESTORE DATABASE [ADPL_USM_QA] FROM DISK='%RESTORE_PATH%\\ADPL_USM_QA.bak' WITH REPLACE\""
