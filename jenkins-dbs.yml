@@ -2,10 +2,10 @@ pipeline:
   agent: any
 
   environment:
-    SOURCE_SQL = "192.168.1.2"
-    DEST_SQL = "192.168.1.4"
-    BACKUP_PATH = "E:\\MSSQL\\MSSQL16.MSSERVER\\MSSQL\\Backup"
-    RESTORE_PATH = "C:\\SQLBackups"
+    SOURCE_SQL: "192.168.1.2"
+    DEST_SQL: "192.168.1.4"
+    BACKUP_PATH: "E:\\MSSQL\\MSSQL16.MSSERVER\\MSSQL\\Backup"
+    RESTORE_PATH: "C:\\SQLBackups"
 
   stages:
 
