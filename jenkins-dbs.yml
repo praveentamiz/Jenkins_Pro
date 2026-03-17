@@ -14,7 +14,7 @@ pipeline:
     SUB_APP2: /vlplusmapiuat
     SQL_FOLDER: C:\\BuildOutput\\SQLFiles
     SQL_SERVER: localhost
-    DATABASE:TEST_DB
+    DATABASE: TEST_DB   # ✅ Space added here
 
   stages:
 
