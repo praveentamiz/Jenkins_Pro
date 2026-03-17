@@ -14,7 +14,7 @@ pipeline:
     SUB_APP2: /vlplusmapiuat
     SQL_FOLDER: C:\\BuildOutput\\SQLFiles
     SQL_SERVER: localhost
-    DATABASE: TEST_DB   # ✅ Space after colon is critical
+    DATABASE: TEST_DB
 
   stages:
 
@@ -45,10 +45,11 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
-        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-            $sqlServer=\\"%SQL_SERVER%\\"; ^
-            $database=\\"%DATABASE%\\"; ^
-            $sqlFolder=\\"%SQL_FOLDER%\\"; ^
-            $createDbScript=\\"IF DB_ID(\\'$database\\') IS NULL CREATE DATABASE [$database];\\"; ^
-            sqlcmd -S $sqlServer -Q $createDbScript -E; ^
-            Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }"'
+        - bat: >
+            powershell -NoProfile -ExecutionPolicy Bypass -Command
+            $sqlServer="%SQL_SERVER%";
+            $database="%DATABASE%";
+            $sqlFolder="%SQL_FOLDER%";
+            $createDbScript="IF DB_ID('$database') IS NULL CREATE DATABASE [$database];";
+            sqlcmd -S $sqlServer -Q $createDbScript -E;
+            Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }
