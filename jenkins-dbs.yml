@@ -2,21 +2,61 @@ pipeline:
   agent: any
 
   environment:
-    SOURCE_SQL: "192.168.1.2"
-    DEST_SQL: "192.168.1.4"
-    BACKUP_PATH: "E:\\MSSQL\\MSSQL16.MSSERVER\\MSSQL\\Backup"
-    RESTORE_PATH: "C:\\SQLBackups"
+    SITE_NAME: API
+    SITE_PORT: '8084'
+    ROOT_FOLDER: C:\\BuildOutput\\API
+    APP_POOL_ROOT: apipoolprod
+    APP_POOL_SUB1: apiusmpoolprod
+    APP_POOL_SUB2: apiusmapipoolprod
+    FOLDER_SUB1: C:\\BuildOutput\\vlplusmqa
+    FOLDER_SUB2: C:\\BuildOutput\\usmapi
+    SUB_APP1: /vlplusmqprod
+    SUB_APP2: /vlplusmapiprod
+    SQL_FOLDER: C:\\BuildOutput\\SQLFiles
+    SQL_SERVER: localhost
+    DATABASE: TEST-DB
 
   stages:
 
-    - stage: Backup_Database
+    - stage: Create_AppPools
       steps:
-        - "bat \"sqlcmd -S %SOURCE_SQL% -E -Q BACKUP DATABASE [ADPL_DMS_QA] TO DISK='%BACKUP_PATH%\\ADPL_DMS_QA.bak' WITH INIT\""
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_ROOT% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_ROOT%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB1% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB2% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB2%"'
 
-    - stage: Copy_Backup
+    - stage: Create_Folders
       steps:
-        - "bat \"copy %BACKUP_PATH%\\ADPL_DMS_QA.bak \\\\192.168.1.4\\SQLBackups\\\""
+        - 'bat "if not exist %ROOT_FOLDER% mkdir %ROOT_FOLDER%"'
+        - 'bat "if not exist %FOLDER_SUB1% mkdir %FOLDER_SUB1%"'
+        - 'bat "if not exist %FOLDER_SUB2% mkdir %FOLDER_SUB2%"'
+        - 'bat "if not exist %SQL_FOLDER% mkdir %SQL_FOLDER%"'
 
-    - stage: Restore_Database
+    - stage: Create_Site
       steps:
-        - "bat \"sqlcmd -S %DEST_SQL% -E -Q RESTORE DATABASE [ADPL_DMS_QA] FROM DISK='%RESTORE_PATH%\\ADPL_DMS_QA.bak' WITH REPLACE\""
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list site /name:%SITE_NAME% || C:\\Windows\\System32\\inetsrv\\appcmd add site /name:%SITE_NAME% /bindings:http/*:%SITE_PORT%: /physicalPath:%ROOT_FOLDER%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%/ /applicationPool:%APP_POOL_ROOT%"'
+
+    - stage: Create_Applications
+      steps:
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP1% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP1% /physicalPath:%FOLDER_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%%SUB_APP1% /applicationPool:%APP_POOL_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP2% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP2% /physicalPath:%FOLDER_SUB2%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%%SUB_APP2% /applicationPool:%APP_POOL_SUB2%"'
+
+    - stage: Deploy_SQL
+      steps:
+        - powershell: |
+            $sqlServer = "${env.SQL_SERVER}"
+            $database = "${env.DATABASE}"
+            $sqlFolder = "${env.SQL_FOLDER}"
+
+            # Create database if it doesn't exist
+            $createDbScript = "IF DB_ID('$database') IS NULL CREATE DATABASE [$database];"
+            sqlcmd -S $sqlServer -Q $createDbScript -E
+
+            # Execute all SQL files in order
+            $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name
+            foreach ($file in $sqlFiles) {
+                Write-Host "Executing SQL file: $($file.FullName)"
+                sqlcmd -S $sqlServer -d $database -E -i $file.FullName
+            }
