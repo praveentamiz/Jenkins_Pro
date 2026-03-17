@@ -14,7 +14,7 @@ pipeline:
     SUB_APP2: /vlplusmapiuat
     SQL_FOLDER: C:\\BuildOutput\\SQLFiles
     SQL_SERVER: localhost
-    DATABASE: TEST_DB   # ✅ Space added here
+    DATABASE: TEST_DB   # ✅ Space after colon is critical
 
   stages:
 
@@ -45,19 +45,10 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
-        - step:
-            powershell: |
-              $sqlServer = "${env.SQL_SERVER}"
-              $database = "${env.DATABASE}"
-              $sqlFolder = "${env.SQL_FOLDER}"
-
-              # Create database if it doesn't exist
-              $createDbScript = "IF DB_ID('$database') IS NULL CREATE DATABASE [$database];"
-              sqlcmd -S $sqlServer -Q $createDbScript -E
-
-              # Execute all SQL files in order
-              $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name
-              foreach ($file in $sqlFiles) {
-                  Write-Host "Executing SQL file: $($file.FullName)"
-                  sqlcmd -S $sqlServer -d $database -E -i $file.FullName
-              }
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+            $sqlServer=\\"%SQL_SERVER%\\"; ^
+            $database=\\"%DATABASE%\\"; ^
+            $sqlFolder=\\"%SQL_FOLDER%\\"; ^
+            $createDbScript=\\"IF DB_ID(\\'$database\\') IS NULL CREATE DATABASE [$database];\\"; ^
+            sqlcmd -S $sqlServer -Q $createDbScript -E; ^
+            Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }"'
