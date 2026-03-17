@@ -1,5 +1,52 @@
 pipeline:
+  agent: pipeline:
   agent: any
+
+  environment:
+    SITE_NAME: UAT
+    SITE_PORT: '8085'
+    ROOT_FOLDER: C:\\BuildOutput\\UAT
+    APP_POOL_ROOT: apipooluat
+    APP_POOL_SUB1: apiusmpooluat
+    APP_POOL_SUB2: apiusmapipooluat
+    FOLDER_SUB1: C:\\BuildOutput\\vlplusmqa
+    FOLDER_SUB2: C:\\BuildOutput\\usmapi
+    SUB_APP1: /vlplusmuat
+    SUB_APP2: /vlplusmapiuat
+    SQL_FOLDER: C:\\BuildOutput\\SQLFiles
+    SQL_SERVER: localhost
+    DATABASE: TEST_DB
+
+  stages:
+
+    - stage: Create_AppPools
+      steps:
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_ROOT% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_ROOT%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB1% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB2% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB2%"'
+
+    - stage: Create_Folders
+      steps:
+        - 'bat "if not exist %ROOT_FOLDER% mkdir %ROOT_FOLDER%"'
+        - 'bat "if not exist %FOLDER_SUB1% mkdir %FOLDER_SUB1%"'
+        - 'bat "if not exist %FOLDER_SUB2% mkdir %FOLDER_SUB2%"'
+        - 'bat "if not exist %SQL_FOLDER% mkdir %SQL_FOLDER%"'
+
+    - stage: Create_Site
+      steps:
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list site /name:%SITE_NAME% || C:\\Windows\\System32\\inetsrv\\appcmd add site /name:%SITE_NAME% /bindings:http/*:%SITE_PORT%: /physicalPath:%ROOT_FOLDER%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%/ /applicationPool:%APP_POOL_ROOT%"'
+
+    - stage: Create_Applications
+      steps:
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP1% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP1% /physicalPath:%FOLDER_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%%SUB_APP1% /applicationPool:%APP_POOL_SUB1%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP2% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP2% /physicalPath:%FOLDER_SUB2%"'
+        - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app %SITE_NAME%%SUB_APP2% /applicationPool:%APP_POOL_SUB2%"'
+
+    - stage: Deploy_SQL
+      steps:
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -Command $sqlServer=\\"%SQL_SERVER%\\"; $database=\\"%DATABASE%\\"; $sqlFolder=\\"%SQL_FOLDER%\\"; $createDbScript=\\"IF DB_ID(\\'$database\\') IS NULL CREATE DATABASE [$database];\\"; sqlcmd -S $sqlServer -Q $createDbScript -E; Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }"'
 
   environment:
     SITE_NAME: API
@@ -45,11 +92,4 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
-        - bat: >
-            powershell -NoProfile -ExecutionPolicy Bypass -Command
-            $sqlServer="%SQL_SERVER%";
-            $database="%DATABASE%";
-            $sqlFolder="%SQL_FOLDER%";
-            $createDbScript="IF DB_ID('$database') IS NULL CREATE DATABASE [$database];";
-            sqlcmd -S $sqlServer -Q $createDbScript -E;
-            Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -Command $sqlServer=\\"%SQL_SERVER%\\"; $database=\\"%DATABASE%\\"; $sqlFolder=\\"%SQL_FOLDER%\\"; $createDbScript=\\"IF DB_ID(\\'$database\\') IS NULL CREATE DATABASE [$database];\\"; sqlcmd -S $sqlServer -Q $createDbScript -E; Get-ChildItem -Path $sqlFolder -Filter *.sql | Sort-Object Name | ForEach-Object { sqlcmd -S $sqlServer -d $database -E -i $_.FullName }"'
