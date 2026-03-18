@@ -18,17 +18,16 @@ pipeline:
 
   stages:
 
-    # ✅ MUST: Checkout latest code
+    # ✅ FIXED CHECKOUT
     - stage: Checkout
       steps:
-        - checkout scm
+        - script:
+            git url: 'https://github.com/praveentamiz/Jenkins_Pro.git', branch: 'main'
 
-    # ✅ DEBUG: Verify files in workspace
+    # ✅ DEBUG
     - stage: Check_Files
       steps:
-        - 'bat "echo Current Directory:"'
         - 'bat "cd"'
-        - 'bat "echo Listing Files:"'
         - 'bat "dir"'
 
     - stage: Create_AppPools
@@ -58,5 +57,4 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
-        - 'bat "echo Running SQL Deployment Script..."'
         - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File %WORKSPACE%\\deploy-sql.ps1"'
