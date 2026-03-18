@@ -51,7 +51,8 @@ pipeline:
            \$sqlFolder=''%SQL_FOLDER%''; ^
            \$createDbScript=\"IF DB_ID(''\$database'') IS NULL CREATE DATABASE [\$database];\"; ^
            sqlcmd -S \$sqlServer -Q \$createDbScript -E; ^
-           Get-ChildItem -Path \$sqlFolder -Filter *.sql ^| Sort-Object Name ^| ForEach-Object { ^
-             Write-Host \"Executing: \$($_.Name)\"; ^
-             sqlcmd -S \$sqlServer -d \$database -E -i \$_.FullName ^
+           \$files = Get-ChildItem -Path \$sqlFolder -Filter *.sql ^| Sort-Object Name; ^
+           foreach (\$file in \$files) { ^
+             Write-Host \"Executing: \$($file.Name)\"; ^
+             sqlcmd -S \$sqlServer -d \$database -E -i \$($file.FullName) ^
            }"'
