@@ -52,6 +52,6 @@ pipeline:
            $createDbScript=\"IF DB_ID(''$database'') IS NULL CREATE DATABASE [$database];\"; ^
            sqlcmd -S $sqlServer -Q $createDbScript -E; ^
            Get-ChildItem -Path $sqlFolder -Filter *.sql ^| Sort-Object Name ^| ForEach-Object { ^
-             Write-Host \"Executing: $($_.Name)\"; ^
+             Write-Host \"Executing: \$($_.Name)\"; ^
              sqlcmd -S $sqlServer -d $database -E -i $_.FullName ^
            }"'
