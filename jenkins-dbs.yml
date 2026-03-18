@@ -18,6 +18,19 @@ pipeline:
 
   stages:
 
+    # ✅ MUST: Checkout latest code
+    - stage: Checkout
+      steps:
+        - checkout scm
+
+    # ✅ DEBUG: Verify files in workspace
+    - stage: Check_Files
+      steps:
+        - 'bat "echo Current Directory:"'
+        - 'bat "cd"'
+        - 'bat "echo Listing Files:"'
+        - 'bat "dir"'
+
     - stage: Create_AppPools
       steps:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_ROOT% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_ROOT%"'
@@ -45,4 +58,5 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
-        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File deploy-sql.ps1"'
+        - 'bat "echo Running SQL Deployment Script..."'
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File %WORKSPACE%\\deploy-sql.ps1"'
