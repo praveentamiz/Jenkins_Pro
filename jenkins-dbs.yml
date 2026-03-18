@@ -18,13 +18,7 @@ pipeline:
 
   stages:
 
-    - stage: Checkout
-      steps:
-        - script:
-            git:
-              url: 'https://github.com/praveentamiz/Jenkins_Pro.git'
-              branch: 'main'
-
+    # ✅ DEBUG (to confirm files exist)
     - stage: Check_Files
       steps:
         - 'bat "cd"'
@@ -57,4 +51,5 @@ pipeline:
 
     - stage: Deploy_SQL
       steps:
+        - 'bat "echo Running SQL Script..."'
         - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File %WORKSPACE%\\deploy-sql.ps1"'
