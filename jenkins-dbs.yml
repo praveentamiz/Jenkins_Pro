@@ -18,18 +18,27 @@ pipeline:
 
   stages:
 
-    # ✅ DEBUG (to confirm files exist)
+    # ✅ MUST: Checkout your repo
+    - stage: Checkout
+      steps:
+        - checkout scm
+
+    # ✅ Debug: confirm files exist
     - stage: Check_Files
       steps:
+        - 'bat "echo Current Directory:"'
         - 'bat "cd"'
+        - 'bat "echo Listing Files:"'
         - 'bat "dir"'
 
+    # ✅ Create App Pools
     - stage: Create_AppPools
       steps:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_ROOT% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_ROOT%"'
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB1% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB1%"'
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list apppool /name:%APP_POOL_SUB2% || C:\\Windows\\System32\\inetsrv\\appcmd add apppool /name:%APP_POOL_SUB2%"'
 
+    # ✅ Create Folders
     - stage: Create_Folders
       steps:
         - 'bat "if not exist %ROOT_FOLDER% mkdir %ROOT_FOLDER%"'
@@ -37,11 +46,13 @@ pipeline:
         - 'bat "if not exist %FOLDER_SUB2% mkdir %FOLDER_SUB2%"'
         - 'bat "if not exist %SQL_FOLDER% mkdir %SQL_FOLDER%"'
 
+    # ✅ Create IIS Site
     - stage: Create_Site
       steps:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list site /name:%SITE_NAME% || C:\\Windows\\System32\\inetsrv\\appcmd add site /name:%SITE_NAME% /bindings:http/*:%SITE_PORT%: /physicalPath:%ROOT_FOLDER%"'
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app \"%SITE_NAME%/\" /applicationPool:%APP_POOL_ROOT%"'
 
+    # ✅ Create IIS Applications
     - stage: Create_Applications
       steps:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP1% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP1% /physicalPath:%FOLDER_SUB1%"'
@@ -49,7 +60,8 @@ pipeline:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP2% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP2% /physicalPath:%FOLDER_SUB2%"'
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app \"%SITE_NAME%%SUB_APP2%\" /applicationPool:%APP_POOL_SUB2%"'
 
+    # ✅ Deploy SQL (FIXED)
     - stage: Deploy_SQL
       steps:
         - 'bat "echo Running SQL Script..."'
-        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File %WORKSPACE%\\deploy-sql.ps1"'
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File deploy-sql.ps1"'
