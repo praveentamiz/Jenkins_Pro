@@ -2,22 +2,28 @@ Write-Host "====================================="
 Write-Host "      SQL Deployment Started"
 Write-Host "====================================="
 
-# CONFIG
-$server   = "CICD-SERVER"
-$database = "CDPL_GMP_DEV"
+# =====================================
+# 🔧 CONFIGURATION
+# =====================================
+$server    = "CICD-SERVER"
+$database  = "CDPL_GMP_DEV"
 $sqlFolder = "C:\BuildOutput\SQLFiles"
 
 Write-Host "Server      : $server"
 Write-Host "Database    : $database"
 Write-Host "SQL Folder  : $sqlFolder"
 
-# Check folder
+# =====================================
+# ✅ CHECK SQL FOLDER
+# =====================================
 if (!(Test-Path $sqlFolder)) {
     Write-Host "❌ SQL folder not found: $sqlFolder"
     exit 1
 }
 
-# Create DB
+# =====================================
+# ✅ CREATE DATABASE
+# =====================================
 Write-Host "Checking/Creating Database..."
 
 sqlcmd -S $server -E -C -b -Q "
@@ -37,7 +43,9 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# Verify DB
+# =====================================
+# ✅ VERIFY DATABASE
+# =====================================
 $dbCheck = sqlcmd -S $server -E -C -h -1 -Q "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name='$database'"
 
 if (-not $dbCheck -or $dbCheck.Trim() -ne $database) {
@@ -47,7 +55,9 @@ if (-not $dbCheck -or $dbCheck.Trim() -ne $database) {
 
 Write-Host "✅ Database verified: $database"
 
-# Get files
+# =====================================
+# ✅ GET SQL FILES (ORDERED)
+# =====================================
 $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -Recurse | Sort-Object Name
 
 if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
@@ -55,7 +65,15 @@ if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
     exit 1
 }
 
-# Execute
+# 🔍 Show execution order
+Write-Host "====================================="
+Write-Host "Execution Order:"
+$sqlFiles | ForEach-Object { Write-Host $_.Name }
+Write-Host "====================================="
+
+# =====================================
+# ✅ EXECUTE SQL FILES
+# =====================================
 foreach ($file in $sqlFiles) {
 
     Write-Host "-------------------------------------"
@@ -64,13 +82,17 @@ foreach ($file in $sqlFiles) {
     sqlcmd -S $server -d $database -E -C -b -i "$($file.FullName)"
 
     if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Error in $($file.Name)"
+        Write-Host "❌ Error in file: $($file.Name)"
         exit 1
-    } else {
+    }
+    else {
         Write-Host "✅ Success: $($file.Name)"
     }
 }
 
+# =====================================
+# ✅ COMPLETED
+# =====================================
 Write-Host "====================================="
 Write-Host "   SQL Deployment Completed ✅"
 Write-Host "====================================="
