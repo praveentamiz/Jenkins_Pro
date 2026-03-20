@@ -18,11 +18,21 @@ pipeline:
 
   stages:
 
+    # ✅ FIX 1: Clone repo manually (VERY IMPORTANT)
+    - stage: Checkout
+      steps:
+        - 'bat "if exist repo rmdir /s /q repo"'
+        - 'bat "git clone -b dbyaml https://github.com/praveentamiz/Jenkins_Pro.git repo"'
+
     # ✅ DEBUG (to confirm files exist)
     - stage: Check_Files
       steps:
+        - 'bat "echo Current Path:"'
         - 'bat "cd"'
+        - 'bat "echo Root Files:"'
         - 'bat "dir"'
+        - 'bat "echo Repo Files:"'
+        - 'bat "dir repo"'
 
     - stage: Create_AppPools
       steps:
@@ -49,7 +59,8 @@ pipeline:
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd list app /site.name:%SITE_NAME% /path:%SUB_APP2% || C:\\Windows\\System32\\inetsrv\\appcmd add app /site.name:%SITE_NAME% /path:%SUB_APP2% /physicalPath:%FOLDER_SUB2%"'
         - 'bat "C:\\Windows\\System32\\inetsrv\\appcmd set app \"%SITE_NAME%%SUB_APP2%\" /applicationPool:%APP_POOL_SUB2%"'
 
+    # ✅ FIX 2: Correct SQL script path
     - stage: Deploy_SQL
       steps:
         - 'bat "echo Running SQL Script..."'
-        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File %WORKSPACE%\\deploy-sql.ps1"' 
+        - 'bat "powershell -NoProfile -ExecutionPolicy Bypass -File repo\\deploy-sql.ps1"'
