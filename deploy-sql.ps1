@@ -2,12 +2,8 @@ Write-Host "====================================="
 Write-Host "      SQL Deployment Started"
 Write-Host "====================================="
 
-# ✅ FIX SSL ISSUE
-$env:SQLCMDENCRYPT = "Optional"
-$env:SQLCMDTRUSTSERVERCERTIFICATE = "true"
-
-# 🔧 SET CORRECT SERVER (CHANGE IF NEEDED)
-$server = "localhost"
+# 🔧 CORRECT SERVER
+$server = "CICD-SERVER"
 $database = "TEST_DB"
 $sqlPath = ".\repo\SQLFiles\*.sql"
 
@@ -16,7 +12,7 @@ $sqlPath = ".\repo\SQLFiles\*.sql"
 # =====================================
 Write-Host "Checking/Creating Database..."
 
-sqlcmd -S $server -E -Q "IF DB_ID('$database') IS NULL BEGIN CREATE DATABASE [$database]; PRINT 'DB Created'; END ELSE PRINT 'DB Already Exists';"
+sqlcmd -S $server -E -C -Q "IF DB_ID('$database') IS NULL BEGIN CREATE DATABASE [$database]; PRINT 'DB Created'; END ELSE PRINT 'DB Already Exists';"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Failed to create database"
@@ -26,7 +22,7 @@ if ($LASTEXITCODE -ne 0) {
 # =====================================
 # ✅ Verify DB
 # =====================================
-sqlcmd -S $server -E -Q "SELECT name FROM sys.databases WHERE name='$database'"
+sqlcmd -S $server -E -C -Q "SELECT name FROM sys.databases WHERE name='$database'"
 
 # =====================================
 # ✅ Execute SQL files
@@ -43,7 +39,7 @@ foreach ($file in $files) {
     Write-Host "-------------------------------------"
     Write-Host "Executing: $($file.Name)"
 
-    sqlcmd -S $server -d $database -E -i "$($file.FullName)"
+    sqlcmd -S $server -d $database -E -C -i "$($file.FullName)"
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Error in $($file.Name)"
