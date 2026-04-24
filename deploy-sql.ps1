@@ -3,7 +3,7 @@ Write-Host "      SQL RESTORE STARTED"
 Write-Host "====================================="
 
 # =====================================
-# 🔧 CONFIG
+# CONFIG
 # =====================================
 $server     = $env:SQL_SERVER
 $database   = $env:DATABASE
@@ -14,7 +14,7 @@ Write-Host "Database    : $database"
 Write-Host "Backup Path : $baseFolder"
 
 # =====================================
-# ✅ CHECK FOLDER
+# CHECK FOLDER
 # =====================================
 if (!(Test-Path $baseFolder)) {
     Write-Host "❌ Backup folder not found"
@@ -22,7 +22,7 @@ if (!(Test-Path $baseFolder)) {
 }
 
 # =====================================
-# ✅ GET LATEST BAK FILE
+# GET LATEST .BAK FILE
 # =====================================
 $bakFile = Get-ChildItem -Path $baseFolder -Filter *.bak |
            Sort-Object LastWriteTime -Descending |
@@ -37,50 +37,26 @@ $backupPath = $bakFile.FullName
 Write-Host "Using Backup File: $backupPath"
 
 # =====================================
-# ✅ GET LOGICAL FILE NAMES (IMPORTANT)
-# =====================================
-Write-Host "Reading logical file names..."
-
-$logicalFiles = sqlcmd -S $server -E -C -Q "RESTORE FILELISTONLY FROM DISK = N'$backupPath'" | Out-String
-
-if (!$logicalFiles) {
-    Write-Host "❌ Unable to read backup file"
-    exit 1
-}
-
-# Extract logical names (simple parsing)
-$dataLogical = ($logicalFiles | Select-String "ROWS").ToString().Split()[0]
-$logLogical  = ($logicalFiles | Select-String "LOG").ToString().Split()[0]
-
-Write-Host "Data Logical File : $dataLogical"
-Write-Host "Log Logical File  : $logLogical"
-
-# =====================================
-# ✅ SET SINGLE USER
+# FORCE DISCONNECT USERS
 # =====================================
 sqlcmd -S $server -E -C -Q "
 IF DB_ID('$database') IS NOT NULL
 BEGIN
-    ALTER DATABASE [$database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    ALTER DATABASE [$database]
+    SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
 END
 "
 
 # =====================================
-# ✅ RESTORE DATABASE WITH MOVE (CRITICAL)
+# SIMPLE RESTORE (NO MOVE)
 # =====================================
-Write-Host "Restoring database with data..."
+Write-Host "Restoring database..."
 
-$sqlRestore = @"
+sqlcmd -S $server -E -C -b -Q "
 RESTORE DATABASE [$database]
 FROM DISK = N'$backupPath'
-WITH REPLACE,
-MOVE '$dataLogical' TO 'C:\Program Files\Microsoft SQL Server\MSSQL\Data\$database.mdf',
-MOVE '$logLogical'  TO 'C:\Program Files\Microsoft SQL Server\MSSQL\Data\$database.ldf',
-RECOVERY,
-STATS = 10;
-"@
-
-sqlcmd -S $server -E -C -b -Q $sqlRestore
+WITH REPLACE, RECOVERY, STATS = 10;
+"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Restore failed"
@@ -88,31 +64,26 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # =====================================
-# ✅ SET MULTI USER
+# SET MULTI USER
 # =====================================
 sqlcmd -S $server -E -C -Q "
 ALTER DATABASE [$database] SET MULTI_USER;
 "
 
 # =====================================
-# ✅ VERIFY DATA EXISTS
+# VERIFY DATA
 # =====================================
 Write-Host "Verifying data..."
 
-$tableCheck = sqlcmd -S $server -E -C -h -1 -Q "
+$tableCount = sqlcmd -S $server -E -C -h -1 -Q "
 SET NOCOUNT ON;
-SELECT TOP 1 name FROM sys.tables;
+SELECT COUNT(*) FROM sys.tables;
 "
 
-if (-not $tableCheck) {
-    Write-Host "⚠️ Database restored but no tables found"
-}
-else {
-    Write-Host "✅ Data verified: Tables exist"
-}
+Write-Host "Tables Count: $tableCount"
 
 # =====================================
-# ✅ DONE
+# DONE
 # =====================================
 Write-Host "====================================="
 Write-Host " Database Restored WITH DATA ✅"
