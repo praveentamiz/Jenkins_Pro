@@ -9,26 +9,22 @@ $server       = $env:SQL_SERVER
 $database     = $env:DATABASE
 $baseFolder   = $env:SQL_FOLDER
 
-# Folder structure
-$sqlFolder    = "$baseFolder\Scripts"
+# Use same folder for SQL files
+$sqlFolder    = $baseFolder
+
+# Separate backup folder
 $backupFolder = "$baseFolder\Backup"
 
 Write-Host "Server        : $server"
 Write-Host "Database      : $database"
-Write-Host "Base Folder   : $baseFolder"
 Write-Host "SQL Folder    : $sqlFolder"
 Write-Host "Backup Folder : $backupFolder"
 
 # =====================================
 # ✅ CHECK / CREATE FOLDERS
 # =====================================
-if (!(Test-Path $baseFolder)) {
-    Write-Host "❌ Base folder not found: $baseFolder"
-    exit 1
-}
-
 if (!(Test-Path $sqlFolder)) {
-    Write-Host "❌ Scripts folder not found: $sqlFolder"
+    Write-Host "❌ SQL folder not found: $sqlFolder"
     exit 1
 }
 
@@ -98,7 +94,7 @@ else {
 # =====================================
 # ✅ GET SQL FILES (ORDERED)
 # =====================================
-$sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -Recurse | Sort-Object Name
+$sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -File | Sort-Object Name
 
 if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
     Write-Host "❌ No SQL files found in $sqlFolder"
