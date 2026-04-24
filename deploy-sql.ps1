@@ -5,11 +5,8 @@ Write-Host "====================================="
 # =====================================
 # CONFIGURATION
 # =====================================
-$server    = "CICD-SERVER"
+$server    = "CICD-SERVER"   # or "localhost" if same machine
 $backupDir = "C:\SQLBackups"
-
-# ✅ Stable connection (fixes SSL + session issue)
-$conn = "$server;TrustServerCertificate=True"
 
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $backupDir"
@@ -51,9 +48,9 @@ foreach ($bak in $bakFiles) {
     Write-Host "Target DB: $database"
 
     # =====================================
-    # FORCE DISCONNECT
+    # FORCE DISCONNECT USERS
     # =====================================
-    sqlcmd -S $conn -E -Q "
+    sqlcmd -S $server -E -C -TrustServerCertificate -Q "
     IF DB_ID('$database') IS NOT NULL
     BEGIN
         ALTER DATABASE [$database]
@@ -62,11 +59,11 @@ foreach ($bak in $bakFiles) {
     "
 
     # =====================================
-    # RESTORE
+    # RESTORE DATABASE
     # =====================================
     Write-Host "Restoring database..."
 
-    sqlcmd -S $conn -E -b -Q "
+    sqlcmd -S $server -E -C -TrustServerCertificate -b -Q "
     RESTORE DATABASE [$database]
     FROM DISK = N'$backupPath'
     WITH REPLACE, RECOVERY, STATS = 5;
@@ -78,9 +75,9 @@ foreach ($bak in $bakFiles) {
     }
 
     # =====================================
-    # MULTI USER
+    # SET MULTI USER
     # =====================================
-    sqlcmd -S $conn -E -Q "
+    sqlcmd -S $server -E -C -TrustServerCertificate -Q "
     ALTER DATABASE [$database] SET MULTI_USER;
     "
 
