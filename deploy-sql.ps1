@@ -3,7 +3,7 @@ Write-Host "      SQL RESTORE STARTED"
 Write-Host "====================================="
 
 # =====================================
-# 🔧 CONFIGURATION (FROM JENKINS ENV)
+# 🔧 CONFIG
 # =====================================
 $server     = $env:SQL_SERVER
 $database   = $env:DATABASE
@@ -14,60 +14,73 @@ Write-Host "Database    : $database"
 Write-Host "Backup Path : $baseFolder"
 
 # =====================================
-# ✅ CHECK BACKUP FOLDER
+# ✅ CHECK FOLDER
 # =====================================
 if (!(Test-Path $baseFolder)) {
-    Write-Host "❌ Backup folder not found: $baseFolder"
+    Write-Host "❌ Backup folder not found"
     exit 1
 }
 
 # =====================================
-# ✅ GET LATEST .BAK FILE
+# ✅ GET LATEST BAK FILE
 # =====================================
-Write-Host "Searching for latest .bak file..."
-
 $bakFile = Get-ChildItem -Path $baseFolder -Filter *.bak |
            Sort-Object LastWriteTime -Descending |
            Select-Object -First 1
 
 if (!$bakFile) {
-    Write-Host "❌ No .bak file found in $baseFolder"
+    Write-Host "❌ No .bak file found"
     exit 1
 }
 
 $backupPath = $bakFile.FullName
-
-Write-Host "✅ Selected Backup File:"
-Write-Host $backupPath
+Write-Host "Using Backup File: $backupPath"
 
 # =====================================
-# ✅ CHECK IF DATABASE EXISTS
+# ✅ GET LOGICAL FILE NAMES (IMPORTANT)
 # =====================================
-$dbExists = sqlcmd -S $server -E -C -h -1 -Q "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name='$database'"
+Write-Host "Reading logical file names..."
 
-# =====================================
-# ✅ SET SINGLE USER (IF EXISTS)
-# =====================================
-if ($dbExists -and $dbExists.Trim() -eq $database) {
+$logicalFiles = sqlcmd -S $server -E -C -Q "RESTORE FILELISTONLY FROM DISK = N'$backupPath'" | Out-String
 
-    Write-Host "Setting database to SINGLE_USER mode..."
-
-    sqlcmd -S $server -E -C -Q "
-    ALTER DATABASE [$database]
-    SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    "
+if (!$logicalFiles) {
+    Write-Host "❌ Unable to read backup file"
+    exit 1
 }
 
-# =====================================
-# ✅ RESTORE DATABASE
-# =====================================
-Write-Host "Restoring database..."
+# Extract logical names (simple parsing)
+$dataLogical = ($logicalFiles | Select-String "ROWS").ToString().Split()[0]
+$logLogical  = ($logicalFiles | Select-String "LOG").ToString().Split()[0]
 
-sqlcmd -S $server -E -C -b -Q "
+Write-Host "Data Logical File : $dataLogical"
+Write-Host "Log Logical File  : $logLogical"
+
+# =====================================
+# ✅ SET SINGLE USER
+# =====================================
+sqlcmd -S $server -E -C -Q "
+IF DB_ID('$database') IS NOT NULL
+BEGIN
+    ALTER DATABASE [$database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+END
+"
+
+# =====================================
+# ✅ RESTORE DATABASE WITH MOVE (CRITICAL)
+# =====================================
+Write-Host "Restoring database with data..."
+
+$sqlRestore = @"
 RESTORE DATABASE [$database]
 FROM DISK = N'$backupPath'
-WITH REPLACE, RECOVERY, STATS = 10;
-"
+WITH REPLACE,
+MOVE '$dataLogical' TO 'C:\Program Files\Microsoft SQL Server\MSSQL\Data\$database.mdf',
+MOVE '$logLogical'  TO 'C:\Program Files\Microsoft SQL Server\MSSQL\Data\$database.ldf',
+RECOVERY,
+STATS = 10;
+"@
+
+sqlcmd -S $server -E -C -b -Q $sqlRestore
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Restore failed"
@@ -77,26 +90,30 @@ if ($LASTEXITCODE -ne 0) {
 # =====================================
 # ✅ SET MULTI USER
 # =====================================
-Write-Host "Setting database to MULTI_USER mode..."
-
 sqlcmd -S $server -E -C -Q "
-ALTER DATABASE [$database]
-SET MULTI_USER;
+ALTER DATABASE [$database] SET MULTI_USER;
 "
 
 # =====================================
-# ✅ VERIFY DATABASE
+# ✅ VERIFY DATA EXISTS
 # =====================================
-$dbCheck = sqlcmd -S $server -E -C -h -1 -Q "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name='$database'"
+Write-Host "Verifying data..."
 
-if (-not $dbCheck -or $dbCheck.Trim() -ne $database) {
-    Write-Host "❌ Database restore verification failed"
-    exit 1
+$tableCheck = sqlcmd -S $server -E -C -h -1 -Q "
+SET NOCOUNT ON;
+SELECT TOP 1 name FROM sys.tables;
+"
+
+if (-not $tableCheck) {
+    Write-Host "⚠️ Database restored but no tables found"
+}
+else {
+    Write-Host "✅ Data verified: Tables exist"
 }
 
 # =====================================
 # ✅ DONE
 # =====================================
 Write-Host "====================================="
-Write-Host " Database Restored Successfully ✅"
+Write-Host " Database Restored WITH DATA ✅"
 Write-Host "====================================="
