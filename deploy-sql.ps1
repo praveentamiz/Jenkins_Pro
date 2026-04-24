@@ -51,7 +51,7 @@ foreach ($bak in $bakFiles) {
     # =====================================
     # FORCE DISCONNECT USERS
     # =====================================
-    sqlcmd -S $server -E -TrustServerCertificate -Q "
+    sqlcmd -S $server -E -N -C -TrustServerCertificate -Q "
     IF DB_ID('$database') IS NOT NULL
     BEGIN
         ALTER DATABASE [$database]
@@ -60,11 +60,11 @@ foreach ($bak in $bakFiles) {
     "
 
     # =====================================
-    # SIMPLE RESTORE (LIKE YOUR OLD STYLE)
+    # RESTORE DATABASE
     # =====================================
     Write-Host "Restoring database..."
 
-    sqlcmd -S $server -E -TrustServerCertificate -b -Q "
+    sqlcmd -S $server -E -N -C -TrustServerCertificate -b -Q "
     RESTORE DATABASE [$database]
     FROM DISK = N'$backupPath'
     WITH REPLACE, RECOVERY, STATS = 5;
@@ -78,7 +78,7 @@ foreach ($bak in $bakFiles) {
     # =====================================
     # SET MULTI USER
     # =====================================
-    sqlcmd -S $server -E -TrustServerCertificate -Q "
+    sqlcmd -S $server -E -N -C -TrustServerCertificate -Q "
     ALTER DATABASE [$database] SET MULTI_USER;
     "
 
@@ -86,8 +86,8 @@ foreach ($bak in $bakFiles) {
 }
 
 # =====================================
-# DONE
+# COMPLETED
 # =====================================
 Write-Host "====================================="
-Write-Host "   ALL QA DATABASES RESTORED ✅"
+Write-Host "   ALL QA DATABASES RESTORED SUCCESSFULLY ✅"
 Write-Host "====================================="
