@@ -1,15 +1,15 @@
 Write-Host "====================================="
-Write-Host "   RESTORE ALL DATABASES STARTED"
+Write-Host "   RESTORE QA DATABASES STARTED"
 Write-Host "====================================="
 
 # =====================================
 # CONFIG
 # =====================================
-$server     = $env:SQL_SERVER
-$baseFolder = $env:SQL_FOLDER
+$server     = "localhost"
+$baseFolder = "C:\SQLBackups"
 
-# 🔥 SET YOUR SQL DATA PATH HERE (IMPORTANT)
-$dataPath = "C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\"
+# ✅ Your SQL DATA path (correct)
+$dataPath = "C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\DATA\"
 
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $baseFolder"
@@ -19,15 +19,25 @@ Write-Host "Data Path   : $dataPath"
 # CHECK FOLDER
 # =====================================
 if (!(Test-Path $baseFolder)) {
-    Write-Host "❌ Backup folder not found"
+    Write-Host "❌ Backup folder not found: $baseFolder"
     exit 1
 }
 
 # =====================================
-# GET ALL .BAK FILES
+# GET ONLY QA BACKUPS
 # =====================================
-$bakFiles = Get-ChildItem -Path $baseFolder -Filter *.bak
+$bakFiles = Get-ChildItem -Path $baseFolder -Filter "*_QA_*.bak"
 
+if (!$bakFiles) {
+    Write-Host "❌ No QA backup files found in $baseFolder"
+    exit 1
+}
+
+Write-Host "Found $($bakFiles.Count) QA backup files"
+
+# =====================================
+# LOOP THROUGH QA FILES
+# =====================================
 foreach ($bak in $bakFiles) {
 
     Write-Host "-------------------------------------"
@@ -40,7 +50,7 @@ foreach ($bak in $bakFiles) {
     Write-Host "Target DB: $dbName"
 
     # =====================================
-    # GET LOGICAL FILE NAMES (CORRECT WAY)
+    # GET LOGICAL FILE NAMES
     # =====================================
     $fileList = sqlcmd -S $server -E -C -s "," -W -Q "
     SET NOCOUNT ON;
@@ -56,7 +66,7 @@ foreach ($bak in $bakFiles) {
     Write-Host "Log Logical : $logLogical"
 
     # =====================================
-    # SET SINGLE USER
+    # FORCE DISCONNECT USERS
     # =====================================
     sqlcmd -S $server -E -C -Q "
     IF DB_ID('$dbName') IS NOT NULL
@@ -67,14 +77,12 @@ foreach ($bak in $bakFiles) {
     "
 
     # =====================================
-    # RESTORE WITH MOVE (FIX)
+    # RESTORE DATABASE
     # =====================================
     $mdf = "$dataPath$dbName.mdf"
     $ldf = "$dataPath$dbName.ldf"
 
-    Write-Host "Restoring to:"
-    Write-Host $mdf
-    Write-Host $ldf
+    Write-Host "Restoring database..."
 
     sqlcmd -S $server -E -C -b -Q "
     RESTORE DATABASE [$dbName]
@@ -100,6 +108,9 @@ foreach ($bak in $bakFiles) {
     Write-Host "✅ Restored: $dbName"
 }
 
+# =====================================
+# DONE
+# =====================================
 Write-Host "====================================="
-Write-Host " ALL DATABASES RESTORED SUCCESSFULLY ✅"
+Write-Host " QA DATABASES RESTORED SUCCESSFULLY ✅"
 Write-Host "====================================="
