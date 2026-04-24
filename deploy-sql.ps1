@@ -8,11 +8,15 @@ Write-Host "====================================="
 $server    = "CICD-SERVER"
 $backupDir = "C:\SQLBackups"
 
-# ✅ FIX: Proper connection string
-$connectionString = "Server=$server;Database=master;Integrated Security=True;TrustServerCertificate=True"
+# ✅ Correct DATA path (your server)
+$dataPath = "C:\Program Files\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\DATA\"
+
+# ✅ Connection
+$conn = "Server=$server;Database=master;Integrated Security=True;TrustServerCertificate=True"
 
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $backupDir"
+Write-Host "Data Path   : $dataPath"
 
 # =====================================
 # CHECK FOLDER
@@ -52,9 +56,22 @@ foreach ($bak in $bakFiles) {
     try {
 
         # =====================================
+        # GET LOGICAL FILE NAMES (IMPORTANT)
+        # =====================================
+        $fileList = Invoke-Sqlcmd -ConnectionString $conn -Query "
+        RESTORE FILELISTONLY FROM DISK = N'$backupPath'
+        "
+
+        $dataLogical = ($fileList | Where-Object { $_.Type -eq 'D' }).LogicalName
+        $logLogical  = ($fileList | Where-Object { $_.Type -eq 'L' }).LogicalName
+
+        Write-Host "Data Logical: $dataLogical"
+        Write-Host "Log Logical : $logLogical"
+
+        # =====================================
         # DISCONNECT USERS
         # =====================================
-        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        Invoke-Sqlcmd -ConnectionString $conn -Query "
         IF DB_ID('$database') IS NOT NULL
         BEGIN
             ALTER DATABASE [$database]
@@ -63,20 +80,29 @@ foreach ($bak in $bakFiles) {
         "
 
         # =====================================
-        # RESTORE
+        # SET NEW FILE PATHS
+        # =====================================
+        $mdf = "$dataPath$database.mdf"
+        $ldf = "$dataPath$database.ldf"
+
+        # =====================================
+        # RESTORE WITH MOVE (FIX)
         # =====================================
         Write-Host "Restoring database..."
 
-        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        Invoke-Sqlcmd -ConnectionString $conn -Query "
         RESTORE DATABASE [$database]
         FROM DISK = N'$backupPath'
-        WITH REPLACE, RECOVERY, STATS = 5;
+        WITH REPLACE,
+        MOVE '$dataLogical' TO '$mdf',
+        MOVE '$logLogical'  TO '$ldf',
+        RECOVERY, STATS = 5;
         "
 
         # =====================================
         # MULTI USER
         # =====================================
-        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        Invoke-Sqlcmd -ConnectionString $conn -Query "
         ALTER DATABASE [$database] SET MULTI_USER;
         "
 
