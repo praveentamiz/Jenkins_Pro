@@ -3,15 +3,19 @@ Write-Host "      SQL Deployment Started"
 Write-Host "====================================="
 
 # =====================================
-# 🔧 CONFIGURATION
+# 🔧 CONFIGURATION (FROM JENKINS ENV)
 # =====================================
-$server    = "CICD-SERVER"
-$database  = "CDPL_GMP_DEV"
-$sqlFolder = "C:\BuildOutput\SQLFiles"
+$server    = $env:SQL_SERVER
+$database  = $env:DATABASE
+$sqlFolder = $env:SQL_FOLDER
 
-Write-Host "Server      : $server"
-Write-Host "Database    : $database"
-Write-Host "SQL Folder  : $sqlFolder"
+# Optional: separate backup folder (recommended)
+$backupFolder = "$sqlFolder\Backup"
+
+Write-Host "Server        : $server"
+Write-Host "Database      : $database"
+Write-Host "SQL Folder    : $sqlFolder"
+Write-Host "Backup Folder : $backupFolder"
 
 # =====================================
 # ✅ CHECK SQL FOLDER
@@ -21,8 +25,14 @@ if (!(Test-Path $sqlFolder)) {
     exit 1
 }
 
+# Create backup folder if not exists
+if (!(Test-Path $backupFolder)) {
+    New-Item -ItemType Directory -Path $backupFolder | Out-Null
+    Write-Host "✅ Backup folder created"
+}
+
 # =====================================
-# ✅ CREATE DATABASE
+# ✅ CREATE DATABASE IF NOT EXISTS
 # =====================================
 Write-Host "Checking/Creating Database..."
 
@@ -56,6 +66,30 @@ if (-not $dbCheck -or $dbCheck.Trim() -ne $database) {
 Write-Host "✅ Database verified: $database"
 
 # =====================================
+# ✅ BACKUP DATABASE
+# =====================================
+Write-Host "Taking Database Backup..."
+
+$timestamp  = Get-Date -Format "yyyyMMddHHmmss"
+$backupFile = "$backupFolder\$database" + "_$timestamp.bak"
+
+$sqlBackup = @"
+BACKUP DATABASE [$database]
+TO DISK = N'$backupFile'
+WITH INIT, FORMAT, STATS = 10
+"@
+
+sqlcmd -S $server -E -C -b -Q $sqlBackup
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Backup failed"
+    exit 1
+}
+else {
+    Write-Host "✅ Backup created: $backupFile"
+}
+
+# =====================================
 # ✅ GET SQL FILES (ORDERED)
 # =====================================
 $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -Recurse | Sort-Object Name
@@ -65,7 +99,7 @@ if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
     exit 1
 }
 
-# 🔍 Show execution order
+# Show execution order
 Write-Host "====================================="
 Write-Host "Execution Order:"
 $sqlFiles | ForEach-Object { Write-Host $_.Name }
