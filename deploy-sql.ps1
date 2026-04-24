@@ -5,27 +5,33 @@ Write-Host "====================================="
 # =====================================
 # 🔧 CONFIGURATION (FROM JENKINS ENV)
 # =====================================
-$server    = $env:SQL_SERVER
-$database  = $env:DATABASE
-$sqlFolder = $env:SQL_FOLDER
+$server       = $env:SQL_SERVER
+$database     = $env:DATABASE
+$baseFolder   = $env:SQL_FOLDER
 
-# Optional: separate backup folder (recommended)
-$backupFolder = "$sqlFolder\Backup"
+# Folder structure
+$sqlFolder    = "$baseFolder\Scripts"
+$backupFolder = "$baseFolder\Backup"
 
 Write-Host "Server        : $server"
 Write-Host "Database      : $database"
+Write-Host "Base Folder   : $baseFolder"
 Write-Host "SQL Folder    : $sqlFolder"
 Write-Host "Backup Folder : $backupFolder"
 
 # =====================================
-# ✅ CHECK SQL FOLDER
+# ✅ CHECK / CREATE FOLDERS
 # =====================================
-if (!(Test-Path $sqlFolder)) {
-    Write-Host "❌ SQL folder not found: $sqlFolder"
+if (!(Test-Path $baseFolder)) {
+    Write-Host "❌ Base folder not found: $baseFolder"
     exit 1
 }
 
-# Create backup folder if not exists
+if (!(Test-Path $sqlFolder)) {
+    Write-Host "❌ Scripts folder not found: $sqlFolder"
+    exit 1
+}
+
 if (!(Test-Path $backupFolder)) {
     New-Item -ItemType Directory -Path $backupFolder | Out-Null
     Write-Host "✅ Backup folder created"
@@ -95,7 +101,7 @@ else {
 $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -Recurse | Sort-Object Name
 
 if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
-    Write-Host "❌ No SQL files found"
+    Write-Host "❌ No SQL files found in $sqlFolder"
     exit 1
 }
 
