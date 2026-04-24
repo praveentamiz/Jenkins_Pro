@@ -3,24 +3,24 @@ Write-Host "      SQL RESTORE STARTED"
 Write-Host "====================================="
 
 # =====================================
-# CONFIGURATION
+# CONFIG
 # =====================================
-$server    = "CICD-SERVER"   # or "localhost" if same machine
+$server    = "CICD-SERVER"   # or "localhost"
 $backupDir = "C:\SQLBackups"
 
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $backupDir"
 
 # =====================================
-# CHECK BACKUP FOLDER
+# CHECK FOLDER
 # =====================================
 if (!(Test-Path $backupDir)) {
-    Write-Host "❌ Backup folder not found: $backupDir"
+    Write-Host "❌ Backup folder not found"
     exit 1
 }
 
 # =====================================
-# GET QA BACKUP FILES
+# GET QA BACKUPS
 # =====================================
 $bakFiles = Get-ChildItem -Path $backupDir -Filter "*_QA_*.bak"
 
@@ -30,12 +30,11 @@ if (!$bakFiles) {
 }
 
 Write-Host "====================================="
-Write-Host "QA Backup Files Found:"
 $bakFiles | ForEach-Object { Write-Host $_.Name }
 Write-Host "====================================="
 
 # =====================================
-# LOOP AND RESTORE
+# LOOP
 # =====================================
 foreach ($bak in $bakFiles) {
 
@@ -48,9 +47,9 @@ foreach ($bak in $bakFiles) {
     Write-Host "Target DB: $database"
 
     # =====================================
-    # FORCE DISCONNECT USERS
+    # DISCONNECT USERS
     # =====================================
-    sqlcmd -S $server -E -C -TrustServerCertificate -Q "
+    Invoke-Sqlcmd -ServerInstance $server -Query "
     IF DB_ID('$database') IS NOT NULL
     BEGIN
         ALTER DATABASE [$database]
@@ -63,30 +62,22 @@ foreach ($bak in $bakFiles) {
     # =====================================
     Write-Host "Restoring database..."
 
-    sqlcmd -S $server -E -C -TrustServerCertificate -b -Q "
+    Invoke-Sqlcmd -ServerInstance $server -Query "
     RESTORE DATABASE [$database]
     FROM DISK = N'$backupPath'
     WITH REPLACE, RECOVERY, STATS = 5;
     "
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "❌ Restore failed for $database"
-        exit 1
-    }
-
     # =====================================
-    # SET MULTI USER
+    # MULTI USER
     # =====================================
-    sqlcmd -S $server -E -C -TrustServerCertificate -Q "
+    Invoke-Sqlcmd -ServerInstance $server -Query "
     ALTER DATABASE [$database] SET MULTI_USER;
     "
 
     Write-Host "✅ Restored: $database"
 }
 
-# =====================================
-# DONE
-# =====================================
 Write-Host "====================================="
 Write-Host "   ALL QA DATABASES RESTORED SUCCESSFULLY ✅"
 Write-Host "====================================="
