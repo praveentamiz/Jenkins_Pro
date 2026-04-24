@@ -9,10 +9,7 @@ $server       = $env:SQL_SERVER
 $database     = $env:DATABASE
 $baseFolder   = $env:SQL_FOLDER
 
-# Use same folder for SQL files
 $sqlFolder    = $baseFolder
-
-# Separate backup folder
 $backupFolder = "$baseFolder\Backup"
 
 Write-Host "Server        : $server"
@@ -21,7 +18,7 @@ Write-Host "SQL Folder    : $sqlFolder"
 Write-Host "Backup Folder : $backupFolder"
 
 # =====================================
-# ✅ CHECK / CREATE FOLDERS
+# ✅ CHECK FOLDERS
 # =====================================
 if (!(Test-Path $sqlFolder)) {
     Write-Host "❌ SQL folder not found: $sqlFolder"
@@ -42,11 +39,6 @@ sqlcmd -S $server -E -C -b -Q "
 IF DB_ID('$database') IS NULL
 BEGIN
     CREATE DATABASE [$database];
-    PRINT 'DB Created';
-END
-ELSE
-BEGIN
-    PRINT 'DB Already Exists';
 END
 "
 
@@ -55,17 +47,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# =====================================
-# ✅ VERIFY DATABASE
-# =====================================
-$dbCheck = sqlcmd -S $server -E -C -h -1 -Q "SET NOCOUNT ON; SELECT name FROM sys.databases WHERE name='$database'"
-
-if (-not $dbCheck -or $dbCheck.Trim() -ne $database) {
-    Write-Host "❌ Database does not exist"
-    exit 1
-}
-
-Write-Host "✅ Database verified: $database"
+Write-Host "✅ Database Ready: $database"
 
 # =====================================
 # ✅ BACKUP DATABASE
@@ -75,60 +57,71 @@ Write-Host "Taking Database Backup..."
 $timestamp  = Get-Date -Format "yyyyMMddHHmmss"
 $backupFile = "$backupFolder\$database" + "_$timestamp.bak"
 
-$sqlBackup = @"
+sqlcmd -S $server -E -C -b -Q "
 BACKUP DATABASE [$database]
 TO DISK = N'$backupFile'
-WITH INIT, FORMAT, STATS = 10
-"@
-
-sqlcmd -S $server -E -C -b -Q $sqlBackup
+WITH INIT, FORMAT
+"
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "❌ Backup failed"
     exit 1
 }
-else {
-    Write-Host "✅ Backup created: $backupFile"
-}
+
+Write-Host "✅ Backup created: $backupFile"
 
 # =====================================
-# ✅ GET SQL FILES (ORDERED)
+# ✅ GET SQL FILES
 # =====================================
 $sqlFiles = Get-ChildItem -Path $sqlFolder -Filter *.sql -File | Sort-Object Name
 
-if (!$sqlFiles -or $sqlFiles.Count -eq 0) {
-    Write-Host "❌ No SQL files found in $sqlFolder"
+if (!$sqlFiles) {
+    Write-Host "❌ No SQL files found"
     exit 1
 }
 
-# Show execution order
 Write-Host "====================================="
 Write-Host "Execution Order:"
 $sqlFiles | ForEach-Object { Write-Host $_.Name }
 Write-Host "====================================="
 
 # =====================================
-# ✅ EXECUTE SQL FILES
+# ✅ EXECUTE SQL FILES (FIXED)
 # =====================================
 foreach ($file in $sqlFiles) {
 
     Write-Host "-------------------------------------"
-    Write-Host "Executing: $($file.FullName)"
+    Write-Host "Executing: $($file.Name)"
 
-    sqlcmd -S $server -d $database -E -C -b -i "$($file.FullName)"
+    # Read SQL file
+    $content = Get-Content $file.FullName -Raw
+
+    # 🔥 REMOVE ALL USE statements (fix your error)
+    $content = $content -replace "(?i)USE\s+\[?.+?\]?\s*;?", ""
+
+    # Add correct DB context at top
+    $content = "USE [$database];`nGO`n" + $content
+
+    # Save temp file
+    $tempFile = "$env:TEMP\sql_$(Get-Random).sql"
+    $content | Out-File -Encoding UTF8 $tempFile
+
+    # Execute
+    sqlcmd -S $server -E -C -b -i "$tempFile"
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "❌ Error in file: $($file.Name)"
         exit 1
     }
-    else {
-        Write-Host "✅ Success: $($file.Name)"
-    }
+
+    Write-Host "✅ Success: $($file.Name)"
+
+    Remove-Item $tempFile -Force
 }
 
 # =====================================
-# ✅ COMPLETED
+# ✅ DONE
 # =====================================
 Write-Host "====================================="
-Write-Host "   SQL Deployment Completed ✅"
+Write-Host " SQL Deployment Completed SUCCESSFULLY ✅"
 Write-Host "====================================="
