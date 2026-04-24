@@ -5,8 +5,11 @@ Write-Host "====================================="
 # =====================================
 # CONFIG
 # =====================================
-$server    = "CICD-SERVER"   # or "localhost"
+$server    = "CICD-SERVER"
 $backupDir = "C:\SQLBackups"
+
+# ✅ FIX: Proper connection string
+$connectionString = "Server=$server;Database=master;Integrated Security=True;TrustServerCertificate=True"
 
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $backupDir"
@@ -46,36 +49,44 @@ foreach ($bak in $bakFiles) {
 
     Write-Host "Target DB: $database"
 
-    # =====================================
-    # DISCONNECT USERS
-    # =====================================
-    Invoke-Sqlcmd -ServerInstance $server -Query "
-    IF DB_ID('$database') IS NOT NULL
-    BEGIN
-        ALTER DATABASE [$database]
-        SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-    END
-    "
+    try {
 
-    # =====================================
-    # RESTORE DATABASE
-    # =====================================
-    Write-Host "Restoring database..."
+        # =====================================
+        # DISCONNECT USERS
+        # =====================================
+        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        IF DB_ID('$database') IS NOT NULL
+        BEGIN
+            ALTER DATABASE [$database]
+            SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+        END
+        "
 
-    Invoke-Sqlcmd -ServerInstance $server -Query "
-    RESTORE DATABASE [$database]
-    FROM DISK = N'$backupPath'
-    WITH REPLACE, RECOVERY, STATS = 5;
-    "
+        # =====================================
+        # RESTORE
+        # =====================================
+        Write-Host "Restoring database..."
 
-    # =====================================
-    # MULTI USER
-    # =====================================
-    Invoke-Sqlcmd -ServerInstance $server -Query "
-    ALTER DATABASE [$database] SET MULTI_USER;
-    "
+        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        RESTORE DATABASE [$database]
+        FROM DISK = N'$backupPath'
+        WITH REPLACE, RECOVERY, STATS = 5;
+        "
 
-    Write-Host "✅ Restored: $database"
+        # =====================================
+        # MULTI USER
+        # =====================================
+        Invoke-Sqlcmd -ConnectionString $connectionString -Query "
+        ALTER DATABASE [$database] SET MULTI_USER;
+        "
+
+        Write-Host "✅ Restored: $database"
+
+    } catch {
+        Write-Host "❌ Restore failed for $database"
+        Write-Host $_.Exception.Message
+        exit 1
+    }
 }
 
 Write-Host "====================================="
