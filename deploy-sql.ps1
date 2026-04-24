@@ -8,8 +8,12 @@ Write-Host "====================================="
 $server     = $env:SQL_SERVER
 $baseFolder = $env:SQL_FOLDER
 
+# 🔥 SET YOUR SQL DATA PATH HERE (IMPORTANT)
+$dataPath = "C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\"
+
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $baseFolder"
+Write-Host "Data Path   : $dataPath"
 
 # =====================================
 # CHECK FOLDER
@@ -24,34 +28,35 @@ if (!(Test-Path $baseFolder)) {
 # =====================================
 $bakFiles = Get-ChildItem -Path $baseFolder -Filter *.bak
 
-if (!$bakFiles) {
-    Write-Host "❌ No .bak files found"
-    exit 1
-}
-
-Write-Host "Found $($bakFiles.Count) backup files"
-
-# =====================================
-# LOOP THROUGH EACH BACKUP
-# =====================================
 foreach ($bak in $bakFiles) {
 
     Write-Host "-------------------------------------"
     Write-Host "Processing: $($bak.Name)"
 
-    # =====================================
-    # EXTRACT DATABASE NAME
-    # =====================================
-    # Example:
-    # ADPL_QMS_QA_20260424.bak → ADPL_QMS_QA
+    # Extract DB name
     $dbName = ($bak.BaseName -replace "_\d{8}.*", "")
+    $backupPath = $bak.FullName
 
     Write-Host "Target DB: $dbName"
 
-    $backupPath = $bak.FullName
+    # =====================================
+    # GET LOGICAL FILE NAMES (CORRECT WAY)
+    # =====================================
+    $fileList = sqlcmd -S $server -E -C -s "," -W -Q "
+    SET NOCOUNT ON;
+    RESTORE FILELISTONLY FROM DISK = N'$backupPath'
+    "
+
+    $lines = $fileList | Where-Object { $_ -and $_ -notmatch "LogicalName" }
+
+    $dataLogical = ($lines[0] -split ",")[0]
+    $logLogical  = ($lines[1] -split ",")[0]
+
+    Write-Host "Data Logical: $dataLogical"
+    Write-Host "Log Logical : $logLogical"
 
     # =====================================
-    # SET SINGLE USER (IF EXISTS)
+    # SET SINGLE USER
     # =====================================
     sqlcmd -S $server -E -C -Q "
     IF DB_ID('$dbName') IS NOT NULL
@@ -62,14 +67,22 @@ foreach ($bak in $bakFiles) {
     "
 
     # =====================================
-    # RESTORE DATABASE
+    # RESTORE WITH MOVE (FIX)
     # =====================================
-    Write-Host "Restoring $dbName..."
+    $mdf = "$dataPath$dbName.mdf"
+    $ldf = "$dataPath$dbName.ldf"
+
+    Write-Host "Restoring to:"
+    Write-Host $mdf
+    Write-Host $ldf
 
     sqlcmd -S $server -E -C -b -Q "
     RESTORE DATABASE [$dbName]
     FROM DISK = N'$backupPath'
-    WITH REPLACE, RECOVERY, STATS = 5;
+    WITH REPLACE,
+    MOVE '$dataLogical' TO '$mdf',
+    MOVE '$logLogical'  TO '$ldf',
+    RECOVERY, STATS = 5;
     "
 
     if ($LASTEXITCODE -ne 0) {
@@ -87,9 +100,6 @@ foreach ($bak in $bakFiles) {
     Write-Host "✅ Restored: $dbName"
 }
 
-# =====================================
-# DONE
-# =====================================
 Write-Host "====================================="
 Write-Host " ALL DATABASES RESTORED SUCCESSFULLY ✅"
 Write-Host "====================================="
