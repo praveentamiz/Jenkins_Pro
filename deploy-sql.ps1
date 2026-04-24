@@ -1,16 +1,14 @@
 Write-Host "====================================="
-Write-Host "      SQL RESTORE STARTED"
+Write-Host "   RESTORE ALL DATABASES STARTED"
 Write-Host "====================================="
 
 # =====================================
 # CONFIG
 # =====================================
 $server     = $env:SQL_SERVER
-$database   = $env:DATABASE
 $baseFolder = $env:SQL_FOLDER
 
 Write-Host "Server      : $server"
-Write-Host "Database    : $database"
 Write-Host "Backup Path : $baseFolder"
 
 # =====================================
@@ -22,69 +20,76 @@ if (!(Test-Path $baseFolder)) {
 }
 
 # =====================================
-# GET LATEST .BAK FILE
+# GET ALL .BAK FILES
 # =====================================
-$bakFile = Get-ChildItem -Path $baseFolder -Filter *.bak |
-           Sort-Object LastWriteTime -Descending |
-           Select-Object -First 1
+$bakFiles = Get-ChildItem -Path $baseFolder -Filter *.bak
 
-if (!$bakFile) {
-    Write-Host "❌ No .bak file found"
+if (!$bakFiles) {
+    Write-Host "❌ No .bak files found"
     exit 1
 }
 
-$backupPath = $bakFile.FullName
-Write-Host "Using Backup File: $backupPath"
+Write-Host "Found $($bakFiles.Count) backup files"
 
 # =====================================
-# FORCE DISCONNECT USERS
+# LOOP THROUGH EACH BACKUP
 # =====================================
-sqlcmd -S $server -E -C -Q "
-IF DB_ID('$database') IS NOT NULL
-BEGIN
-    ALTER DATABASE [$database]
-    SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-END
-"
+foreach ($bak in $bakFiles) {
 
-# =====================================
-# SIMPLE RESTORE (NO MOVE)
-# =====================================
-Write-Host "Restoring database..."
+    Write-Host "-------------------------------------"
+    Write-Host "Processing: $($bak.Name)"
 
-sqlcmd -S $server -E -C -b -Q "
-RESTORE DATABASE [$database]
-FROM DISK = N'$backupPath'
-WITH REPLACE, RECOVERY, STATS = 10;
-"
+    # =====================================
+    # EXTRACT DATABASE NAME
+    # =====================================
+    # Example:
+    # ADPL_QMS_QA_20260424.bak → ADPL_QMS_QA
+    $dbName = ($bak.BaseName -replace "_\d{8}.*", "")
 
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "❌ Restore failed"
-    exit 1
+    Write-Host "Target DB: $dbName"
+
+    $backupPath = $bak.FullName
+
+    # =====================================
+    # SET SINGLE USER (IF EXISTS)
+    # =====================================
+    sqlcmd -S $server -E -C -Q "
+    IF DB_ID('$dbName') IS NOT NULL
+    BEGIN
+        ALTER DATABASE [$dbName]
+        SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+    END
+    "
+
+    # =====================================
+    # RESTORE DATABASE
+    # =====================================
+    Write-Host "Restoring $dbName..."
+
+    sqlcmd -S $server -E -C -b -Q "
+    RESTORE DATABASE [$dbName]
+    FROM DISK = N'$backupPath'
+    WITH REPLACE, RECOVERY, STATS = 5;
+    "
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Restore failed for $dbName"
+        exit 1
+    }
+
+    # =====================================
+    # SET MULTI USER
+    # =====================================
+    sqlcmd -S $server -E -C -Q "
+    ALTER DATABASE [$dbName] SET MULTI_USER;
+    "
+
+    Write-Host "✅ Restored: $dbName"
 }
-
-# =====================================
-# SET MULTI USER
-# =====================================
-sqlcmd -S $server -E -C -Q "
-ALTER DATABASE [$database] SET MULTI_USER;
-"
-
-# =====================================
-# VERIFY DATA
-# =====================================
-Write-Host "Verifying data..."
-
-$tableCount = sqlcmd -S $server -E -C -h -1 -Q "
-SET NOCOUNT ON;
-SELECT COUNT(*) FROM sys.tables;
-"
-
-Write-Host "Tables Count: $tableCount"
 
 # =====================================
 # DONE
 # =====================================
 Write-Host "====================================="
-Write-Host " Database Restored WITH DATA ✅"
+Write-Host " ALL DATABASES RESTORED SUCCESSFULLY ✅"
 Write-Host "====================================="
