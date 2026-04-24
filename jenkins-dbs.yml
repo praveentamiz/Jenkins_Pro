@@ -14,7 +14,7 @@ pipeline:
     SUB_APP2: /vlplusmapiuat
     SQL_FOLDER: 'C:\\BuildOutput\\SQLFiles'
     SQL_SERVER: localhost
-    DATABASE: TEST_DB
+    DATABASE: USP_QRCS_PROD
 
   stages:
 
