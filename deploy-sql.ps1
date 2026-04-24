@@ -8,6 +8,9 @@ Write-Host "====================================="
 $server    = "CICD-SERVER"
 $backupDir = "C:\SQLBackups"
 
+# ✅ Stable connection (fixes SSL + session issue)
+$conn = "$server;TrustServerCertificate=True"
+
 Write-Host "Server      : $server"
 Write-Host "Backup Path : $backupDir"
 
@@ -20,7 +23,7 @@ if (!(Test-Path $backupDir)) {
 }
 
 # =====================================
-# GET QA BACKUP FILES ONLY
+# GET QA BACKUP FILES
 # =====================================
 $bakFiles = Get-ChildItem -Path $backupDir -Filter "*_QA_*.bak"
 
@@ -42,16 +45,15 @@ foreach ($bak in $bakFiles) {
     Write-Host "-------------------------------------"
     Write-Host "Processing: $($bak.Name)"
 
-    # Extract DB name
-    $database = ($bak.BaseName -replace "_\d{8}.*", "")
+    $database   = ($bak.BaseName -replace "_\d{8}.*", "")
     $backupPath = $bak.FullName
 
     Write-Host "Target DB: $database"
 
     # =====================================
-    # FORCE DISCONNECT USERS
+    # FORCE DISCONNECT
     # =====================================
-    sqlcmd -S $server -E -N -C -TrustServerCertificate -Q "
+    sqlcmd -S $conn -E -Q "
     IF DB_ID('$database') IS NOT NULL
     BEGIN
         ALTER DATABASE [$database]
@@ -60,11 +62,11 @@ foreach ($bak in $bakFiles) {
     "
 
     # =====================================
-    # RESTORE DATABASE
+    # RESTORE
     # =====================================
     Write-Host "Restoring database..."
 
-    sqlcmd -S $server -E -N -C -TrustServerCertificate -b -Q "
+    sqlcmd -S $conn -E -b -Q "
     RESTORE DATABASE [$database]
     FROM DISK = N'$backupPath'
     WITH REPLACE, RECOVERY, STATS = 5;
@@ -76,9 +78,9 @@ foreach ($bak in $bakFiles) {
     }
 
     # =====================================
-    # SET MULTI USER
+    # MULTI USER
     # =====================================
-    sqlcmd -S $server -E -N -C -TrustServerCertificate -Q "
+    sqlcmd -S $conn -E -Q "
     ALTER DATABASE [$database] SET MULTI_USER;
     "
 
@@ -86,7 +88,7 @@ foreach ($bak in $bakFiles) {
 }
 
 # =====================================
-# COMPLETED
+# DONE
 # =====================================
 Write-Host "====================================="
 Write-Host "   ALL QA DATABASES RESTORED SUCCESSFULLY ✅"
